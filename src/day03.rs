@@ -1,28 +1,36 @@
 use crate::util::{print_part_1, print_part_2};
+use std::collections::HashSet;
 use std::fs::read_to_string;
 use std::time::Instant;
-use std::collections::HashSet;
 
 fn santa_travel(input: &str, part: usize) -> usize {
     let mut santa_index = 0;
     let mut coll = HashSet::new();
 
     let mut x = [0, 0];
-    let mut y =  [0, 0];
-    coll.insert((x[santa_index],y[santa_index]));
-
+    let mut y = [0, 0];
+    coll.insert((x[santa_index], y[santa_index]));
 
     for dir in input.chars() {
         match dir {
-            '<' => {x[santa_index]-= 1;}
-            '>' => {x[santa_index] += 1;}
-            '^' => {y[santa_index] += 1;}
-            'v' => {y[santa_index] -= 1;}
-            _ => unreachable!()
+            '<' => {
+                x[santa_index] -= 1;
+            }
+            '>' => {
+                x[santa_index] += 1;
+            }
+            '^' => {
+                y[santa_index] += 1;
+            }
+            'v' => {
+                y[santa_index] -= 1;
+            }
+            _ => unreachable!(),
         }
-        coll.insert((x[santa_index],y[santa_index]));
+        coll.insert((x[santa_index], y[santa_index]));
 
-        if part == 2 {santa_index ^= 1; // flip to next santa
+        if part == 2 {
+            santa_index ^= 1; // flip to next santa
         }
     }
     coll.len()
