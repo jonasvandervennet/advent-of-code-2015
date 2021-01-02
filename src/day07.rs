@@ -3,118 +3,157 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::time::Instant;
+#[derive(PartialEq)]
+enum OP {
+    INV,
+    OP,
+    ASS,
+}
+struct Command {
+    kind: OP,
+    args: Vec<String>,
+}
+
+impl Command {
+    fn new(line: &str) -> Self {
+        let re: Regex = Regex::new(r"^NOT (.{1,}) -> (.{1,})$").unwrap();
+        if re.is_match(line) {
+            // Inversion
+            let cap = re.captures_iter(line).next().unwrap();
+            let lhs = cap[1].parse::<String>().unwrap();
+            let rhs = cap[2].parse::<String>().unwrap();
+            return Self {
+                kind: OP::INV,
+                args: vec![lhs, rhs],
+            };
+        }
+
+        let re: Regex = Regex::new(r"^(.{1,}|\d{1,}) (.{1,}) (.{1,}|\d{1,}) -> (.{1,})$").unwrap();
+        if re.is_match(line) {
+            // Operation
+            let cap = re.captures_iter(line).next().unwrap();
+            let lhs = cap[1].parse::<String>().unwrap();
+            let op = cap[2].parse::<String>().unwrap();
+            let rhs = cap[3].parse::<String>().unwrap();
+            let ass = cap[4].parse::<String>().unwrap();
+
+            return Self {
+                kind: OP::OP,
+                args: vec![lhs, op, rhs, ass],
+            };
+        }
+
+        let re: Regex = Regex::new(r"^(.{1,}|\d{1,}) -> (.{1,})$").unwrap();
+        if re.is_match(line) {
+            // Assignment
+            let cap = re.captures_iter(line).next().unwrap();
+            let lhs = cap[1].parse::<String>().unwrap();
+            let rhs = cap[2].parse::<String>().unwrap();
+            return Self {
+                kind: OP::ASS,
+                args: vec![lhs, rhs],
+            };
+        }
+
+        panic!("{}", line);
+    }
+}
 
 fn execute_circuit(input: &str, part: usize) -> HashMap<String, u16> {
     let mut registry: HashMap<String, u16> = HashMap::new();
-    let mut commands: Vec<&str> = input.lines().collect();
+    let mut commands: Vec<Command> = input.lines().map(|line| Command::new(line)).collect();
     let mut processed = vec![false; commands.len()];
 
     let mut part2_intervention = false;
     loop {
         let mut processed_one = false;
-        'cmd_loop: for (i, line) in commands.iter().enumerate() {
+        'cmd_loop: for (i, cmd) in commands.iter().enumerate() {
             if processed[i] {
                 continue 'cmd_loop;
             }
-            let mut matched = false;
-
-            let re: Regex = Regex::new(r"^NOT (.{1,}) -> (.{1,})$").unwrap();
-            if !matched && re.is_match(line) {
-                // Inversion
-                matched = true;
-                let cap = re.captures_iter(line).next().unwrap();
-                let lhs = match registry.get(&cap[1].parse::<String>().unwrap()) {
-                    Some(n) => *n,
-                    None => {
-                        continue 'cmd_loop;
-                    } // leave processing, this variable was not assigned yet
-                };
-                let rhs = cap[2].parse::<String>().unwrap();
-                registry
-                    .entry(rhs)
-                    .and_modify(|e| *e = !lhs)
-                    .or_insert(!lhs);
-            }
-
-            let re: Regex =
-                Regex::new(r"^(.{1,}|\d{1,}) (.{1,}) (.{1,}|\d{1,}) -> (.{1,})$").unwrap();
-            if !matched && re.is_match(line) {
-                // Operation
-                matched = true;
-                let cap = re.captures_iter(line).next().unwrap();
-                let lhs = match cap[1].parse::<u16>() {
-                    Ok(x) => x,
-                    Err(_) => match registry.get(&cap[1].parse::<String>().unwrap()) {
+            match cmd.kind {
+                OP::INV => {
+                    let lhs = match registry.get(&cmd.args[0]) {
                         Some(n) => *n,
                         None => {
                             continue 'cmd_loop;
                         } // leave processing, this variable was not assigned yet
-                    },
-                };
-                let op = &cap[2];
-                let rhs = match cap[3].parse::<u16>() {
-                    Ok(x) => x,
-                    Err(_) => match registry.get(&cap[3].parse::<String>().unwrap()) {
-                        Some(n) => *n,
-                        None => {
-                            continue 'cmd_loop;
-                        } // leave processing, this variable was not assigned yet
-                    },
-                };
-                let ass = cap[4].parse::<String>().unwrap();
+                    };
+                    registry
+                        .entry(cmd.args[1].to_string())
+                        .and_modify(|e| *e = !lhs)
+                        .or_insert(!lhs);
+                }
+                OP::OP => {
+                    let lhs = match cmd.args[0].parse::<u16>() {
+                        Ok(x) => x,
+                        Err(_) => match registry.get(&cmd.args[0]) {
+                            Some(n) => *n,
+                            None => {
+                                continue 'cmd_loop;
+                            } // leave processing, this variable was not assigned yet
+                        },
+                    };
+                    let rhs = match cmd.args[2].parse::<u16>() {
+                        Ok(x) => x,
+                        Err(_) => match registry.get(&cmd.args[2]) {
+                            Some(n) => *n,
+                            None => {
+                                continue 'cmd_loop;
+                            } // leave processing, this variable was not assigned yet
+                        },
+                    };
 
-                let result = match op {
-                    "AND" => lhs & rhs,
-                    "OR" => lhs | rhs,
-                    "LSHIFT" => lhs << rhs,
-                    "RSHIFT" => lhs >> rhs,
-                    _ => unreachable!(),
-                };
-                registry
-                    .entry(ass)
-                    .and_modify(|e| *e = result)
-                    .or_insert(result);
-            }
-
-            let re: Regex = Regex::new(r"^(.{1,}|\d{1,}) -> (.{1,})$").unwrap();
-            if !matched && re.is_match(line) {
-                // Assignment
-                matched = true;
-                let cap = re.captures_iter(line).next().unwrap();
-                let lhs = match cap[1].parse::<u16>() {
-                    Ok(x) => x,
-                    Err(_) => match registry.get(&cap[1].parse::<String>().unwrap()) {
-                        Some(n) => *n,
-                        None => {
-                            continue 'cmd_loop;
-                        } // leave processing, this variable was not assigned yet
-                    },
-                };
-                let rhs = cap[2].parse::<String>().unwrap();
-                registry.entry(rhs).and_modify(|e| *e = lhs).or_insert(lhs);
-            }
-            if !matched {
-                panic!("({}): {}", i, line);
+                    let result = match &cmd.args[1][..] {
+                        "AND" => lhs & rhs,
+                        "OR" => lhs | rhs,
+                        "LSHIFT" => lhs << rhs,
+                        "RSHIFT" => lhs >> rhs,
+                        _ => unreachable!(),
+                    };
+                    registry
+                        .entry(cmd.args[3].to_string())
+                        .and_modify(|e| *e = result)
+                        .or_insert(result);
+                }
+                OP::ASS => {
+                    let lhs = match cmd.args[0].parse::<u16>() {
+                        Ok(x) => x,
+                        Err(_) => match registry.get(&cmd.args[0]) {
+                            Some(n) => *n,
+                            None => {
+                                continue 'cmd_loop;
+                            } // leave processing, this variable was not assigned yet
+                        },
+                    };
+                    registry
+                        .entry(cmd.args[1].to_string())
+                        .and_modify(|e| *e = lhs)
+                        .or_insert(lhs);
+                }
             }
 
             processed_one = true;
             processed[i] = true;
         }
-        // prevent infinite loops (not necessary probably)
+
+        // stop as soon as no new commands are executed
         if !processed_one {
             if part == 2 && !part2_intervention {
-                println!("Resetting!");
-                commands[334] = "46065 -> b";
+                let b_index = commands
+                    .iter()
+                    .position(|cmd| cmd.kind == OP::ASS && cmd.args[1] == "b")
+                    .unwrap();
+                commands[b_index] = Command::new(&format!("{} -> b", registry.get("a").unwrap()));
                 processed = vec![false; commands.len()];
                 registry.clear();
 
                 part2_intervention = true;
             } else {
-                break;
+                return registry;
             }
         }
     }
-    registry
 }
 
 pub fn main() {
