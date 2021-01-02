@@ -3,12 +3,14 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::time::Instant;
+
 #[derive(PartialEq)]
 enum OP {
     INV,
     OP,
     ASS,
 }
+
 struct Command {
     kind: OP,
     args: Vec<String>,
