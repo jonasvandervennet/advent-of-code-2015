@@ -32,7 +32,6 @@ fn rate_nice_part_1(word: &str) -> bool {
 }
 
 fn rate_nice_part_2(word: &str) -> bool {
-
     // should contain a pair of characters at least twice somewhere in the word
     let re: Regex = Regex::new(r"(..).*\1{1}").unwrap();
     if !re.is_match(word).unwrap() {
